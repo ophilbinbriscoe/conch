@@ -10,17 +10,17 @@ using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
 
-namespace Landline
+namespace Conch
 {
-	public class LandlineUDPBroadcaster : MonoBehaviour
+	public class ConchUDPBroadcaster : MonoBehaviour
 	{
-		public LandlineConnection connection;
+		public ConchConnection connection;
 
 		[System.Serializable]
 		public struct Target
 		{
 			[HideInInspector]
-			public LandlineUDPBroadcaster broadcaster;
+			public ConchUDPBroadcaster broadcaster;
 
 			[ValueDropdown( nameof( GetNames ) )]
 			public string name;
