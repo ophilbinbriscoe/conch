@@ -10,9 +10,9 @@ using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
 
-namespace Landline
+namespace Conch
 {
-	public class LandlineConnection : MonoBehaviour
+	public class ConchConnection : MonoBehaviour
 	{
 		[LabelText( "API URL" )]
 		public string url = @"https://us-central1-landline.cloudfunctions.net/sync";
