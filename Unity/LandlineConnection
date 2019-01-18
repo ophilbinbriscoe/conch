@@ -1,0 +1,228 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Text.RegularExpressions;
+using Sirenix.OdinInspector;
+using UnityEngine;
+using UnityEngine.Networking;
+using Newtonsoft.Json;
+
+namespace Landline
+{
+	public class LandlineConnection : MonoBehaviour
+	{
+		[LabelText( "API URL" )]
+		public string url = @"https://us-central1-landline.cloudfunctions.net/sync";
+
+		public string project;
+
+		[Tooltip( "Sync with the project automatically at regular intervals." )]
+		public bool autoSync = true;
+
+		[Indent]
+		[MinValue( 3f )]
+		[SuffixLabel( "sec." )]
+		[LabelText( "Interval" )]
+		[ShowIf( nameof( autoSync ) )]
+		public float autoSyncInterval = 60f;
+
+		[Tooltip( "Do not post a device name/address/port when syncing. (anonymous sender)" )]
+		public bool readOnly;
+
+		[LabelText( "Name" )]
+		[HideIf( nameof( readOnly ) )]
+		[TitleGroup( "Local Device" )]
+		[EnableIf( nameof( overrideDevice ) )]
+		[CustomContextMenu( "Refresh", nameof( GetSystemDeviceName ) )]
+		public string device;
+
+		[Indent]
+		[LabelText( "Override" )]
+		[TitleGroup( "Local Device" )]
+		public bool overrideDevice = false;
+
+		[HideIf( nameof( readOnly ) )]
+		[TitleGroup( "Local Device" )]
+		[EnableIf( nameof( overrideAddress ) )]
+		[CustomContextMenu( "Refresh", nameof( GetLocalAddress ) )]
+		public string address;
+
+		[Indent]
+		[LabelText( "Override" )]
+		[TitleGroup( "Local Device" )]
+		public bool overrideAddress = false;
+
+		[MinValue( 0 )]
+		[MaxValue( ushort.MaxValue )]
+		[HideIf( nameof( readOnly ) )]
+		[TitleGroup( "Local Device" )]
+		[EnableIf( nameof( overridePort ) )]
+		[CustomContextMenu( "Refresh", nameof( GetFreePort ) )]
+		public int port;
+
+		[Indent]
+		[LabelText( "Override" )]
+		[TitleGroup( "Local Device" )]
+		public bool overridePort = false;
+
+		[ReadOnly]
+		public List<RemoteDevice> remotes;
+
+		public virtual void GetLocalAddress ()
+		{
+			address = NetUtil.GetLocalAddress();
+		}
+
+		public virtual void GetSystemDeviceName ()
+		{
+			device = SystemInfo.deviceName;
+			ConformDeviceName();
+		}
+
+		public virtual void GetFreePort ()
+		{
+			port = NetUtil.GetFreePort();
+		}
+
+		public virtual void ConformDeviceName ()
+		{
+			device = Regex.Replace( device, "[^a-zA-Z0-9]+", string.Empty );
+		}
+
+		protected virtual void Reset ()
+		{
+			GetSystemDeviceName();
+			GetLocalAddress();
+		}
+
+		protected virtual void OnValidate ()
+		{
+			ConformDeviceName();
+		}
+
+		[Button]
+		public void Sync ()
+		{
+			StartCoroutine( SyncCoroutine() );
+		}
+
+		private IEnumerator SyncCoroutine ()
+		{
+			var url = this.url;
+
+			url += $"?project={project}";
+
+			if ( !readOnly )
+			{
+				url = url + $"&device={device}&address={address}&port={port}";
+			}
+
+			Debug.Log( url );
+
+			var request = UnityWebRequest.Get( url );
+
+			var operation = request.SendWebRequest();
+
+			var sw = new System.Diagnostics.Stopwatch();
+
+			sw.Start();
+
+			while ( !operation.isDone )
+			{
+				yield return null;
+			}
+
+			sw.Stop();
+
+			Debug.Log( $"response time: {sw.ElapsedMilliseconds}ms" );
+
+			if ( request.isNetworkError )
+			{
+				Debug.LogError( "Network error." );
+				yield break;
+			}
+
+			if ( request.isHttpError )
+			{
+				Debug.LogError( "HTTP error." );
+				yield break;
+			}
+
+			var response = request.downloadHandler.text;
+
+			//Debug.Log( response );
+
+			if ( !string.IsNullOrWhiteSpace( response ) )
+			{
+				var dictionary = JsonConvert.DeserializeObject<Dictionary<string, dynamic>>( response );
+
+				if ( remotes == null )
+				{
+					remotes = new List<RemoteDevice>();
+				}
+				else
+				{
+					remotes.Clear();
+				}
+
+				foreach ( var pair in dictionary.OrderBy( pair => pair.Key ) )
+				{
+					if ( pair.Key == device )
+					{
+						continue;
+					}
+
+					var jobj = pair.Value as Newtonsoft.Json.Linq.JObject;
+
+					RemoteDevice remote;
+
+					remote.name = pair.Key;
+					remote.address = jobj.Value<string>( "address" );
+					remote.port = jobj.Value<int>( "port" );
+					remote.timestamp = jobj.Value<string>( "timestamp" );
+
+					remotes.Add( remote );
+
+					Debug.Log( remote );
+				}
+			}
+		}
+
+		protected virtual void Start ()
+		{
+			if ( !overrideDevice )
+			{
+				GetSystemDeviceName();
+			}
+
+			if ( !overrideAddress )
+			{
+				GetLocalAddress();
+			}
+
+			if ( !overridePort )
+			{
+				GetFreePort();
+			}
+
+			if ( autoSync )
+			{
+				StartCoroutine( AutoSyncCoroutine() );
+			}
+		}
+
+		protected virtual IEnumerator AutoSyncCoroutine ()
+		{
+			do
+			{
+				Sync();
+
+				yield return new WaitForSecondsRealtime( autoSyncInterval );
+			}
+			while ( true );
+		}
+	}
+}
