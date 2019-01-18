@@ -1,0 +1,63 @@
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Text.RegularExpressions;
+using Sirenix.OdinInspector;
+using UnityEngine;
+using UnityEngine.Networking;
+using Newtonsoft.Json;
+
+namespace Landline
+{
+	public class LandlineUDPBroadcaster : MonoBehaviour
+	{
+		public LandlineConnection connection;
+
+		[System.Serializable]
+		public struct Target
+		{
+			[HideInInspector]
+			public LandlineUDPBroadcaster broadcaster;
+
+			[ValueDropdown( nameof( GetNames ) )]
+			public string name;
+
+			public List<string> GetNames ()
+			{		
+				return (from r in broadcaster.connection.remotes select $"{r.name}").ToList();
+			}
+
+			public void Send ( string message )
+			{
+				var key = name;
+
+				var remote = (from r in broadcaster.connection.remotes where r.name == key select r).FirstOrDefault();
+
+				if ( remote.address != null )
+				{
+					Debug.Log( $"sending \"{message}\" to {remote}" );
+				}
+			}
+		}
+
+		[ListDrawerSettings( CustomAddFunction = nameof( AddTarget ) )]
+		public List<Target> targets = new List<Target>();
+
+		public void AddTarget ()
+		{
+			targets.Add( new Target() { broadcaster = this } );
+		}
+
+		[Button]
+		public void Send ( string message )
+		{
+			foreach ( var target in targets )
+			{
+				target.Send( message );
+			}
+		}
+	}
+}
