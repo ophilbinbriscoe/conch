@@ -11,7 +11,7 @@ using UnityEngine.Networking;
 using Newtonsoft.Json;
 using dt = System.DateTime;
 
-namespace Landline
+namespace Conch
 {
 	[System.Serializable]
 	public struct RemoteDevice
