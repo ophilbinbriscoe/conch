@@ -10,7 +10,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
 
-namespace Landline
+namespace Conch
 {
 	public static class NetUtil
 	{
